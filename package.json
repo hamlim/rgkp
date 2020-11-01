@@ -1,9 +1,9 @@
 {
-  "name": "template-project",
+  "name": "rgkp",
   "version": "1.0.0",
   "main": "dist/index.js",
   "source": "src/index.tsx",
-  "repository": "git@github.com:hamlim/template-project.git",
+  "repository": "git@github.com:hamlim/rgkp.git",
   "author": "Matt Hamlin <matthewjameshamlin@gmail.com>",
   "license": "MIT",
   "scripts": {
@@ -12,8 +12,8 @@
     "test-watch": "jest --watch",
     "test-cov": "jest --collectCoverage",
     "prepub": "yarn build",
-    "pub": "yarn prepub && yarn npm publish --access public",
-    "tsc": "yarn dlx --package typescript tsc"
+    "pub": "yarn prepub && yarn publish --access public",
+    "tsc": "tsc --no-emit"
   },
   "devDependencies": {
     "@babel/cli": "^7.8.4",
@@ -34,10 +34,11 @@
     "react-dom": "experimental",
     "react-is": "^16.13.1",
     "styled-components": "^5.1.0",
-    "typescript": "^3.9.2"
+    "typescript": "^4"
   },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
-  }
+  },
+  "bin": "dist/cli.js"
 }

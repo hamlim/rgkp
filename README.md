@@ -1,9 +1,14 @@
-# Project Template
+# rgkp
 
-Make sure to update this with the right documentation!
+Transform a collection of source files into a browser compatible collection of
+files.
 
-### Tools:
+## Install and Setup
 
-- Typescript
-- Babel
-- Jest
+```sh
+yarn add -D rgkp
+```
+
+```sh
+yarn rgkp ./src/application.tsx
+```
