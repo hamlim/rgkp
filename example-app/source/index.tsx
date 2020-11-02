@@ -1,10 +1,5 @@
-import { useState } from 'react'
+import React from 'react'
 import { render } from 'react-dom'
+import Counter from './Counter'
 
-function Comp() {
-  let [c, setC] = useState(0)
-
-  return <button onClick={() => setC((c) => c + 1)}>Count {c}</button>
-}
-
-render(<Comp />, document.querySelector('#root'))
+render(<Counter />, document.querySelector('#root'))

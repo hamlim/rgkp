@@ -12,3 +12,18 @@ yarn add -D rgkp
 ```sh
 yarn rgkp ./src/application.tsx
 ```
+
+## Usage via Node:
+
+```tsx
+import rgkp from 'rgkp'
+
+rgkp({
+  source: 'path/to/file.tsx',
+  resolveBabelParseOptions({ filename, content }) {
+    return {
+      plugins: ['jsx', 'typescript'],
+    }
+  },
+})
+```

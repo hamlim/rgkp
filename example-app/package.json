@@ -3,14 +3,18 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
+  "scripts": {
+    "build": "rgkp source/index.tsx"
+  },
   "dependencies": {
+    "@babel/preset-react": "^7.12.1",
     "react": "experimental",
     "react-dom": "experimental"
   },
   "devDependencies": {
     "@babel/cli": "7.12.1",
     "@babel/core": "7.12.3",
-    "@babel/preset-env": "7.12.1",
-    "@babel/plugin-transform-typescript": "7.12.1"
+    "@babel/plugin-transform-typescript": "7.12.1",
+    "@babel/preset-env": "7.12.1"
   }
 }
