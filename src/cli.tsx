@@ -6,5 +6,5 @@ let source = process.argv[2]
 main({
   source,
 }).catch((err) => {
-  throw err
+  console.log(err)
 })

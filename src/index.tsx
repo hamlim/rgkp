@@ -80,6 +80,7 @@ function buildGraph({
 }: {
   source: string
   resolveBabelParseOptions: ResolveBabelParseOptions
+  resolveAmbiguousImportedFileExtension: ResolveAmbiguousImportedFileExtension
 }): Dependency {
   let entryDependency: Dependency = {
     filename: source,
@@ -105,7 +106,7 @@ type ResolveAmbiguousImportedFileExtension = (arg: {
 export interface RgkpConfig {
   source: string
   resolveBabelParseOptions?: ResolveBabelParseOptions
-  resolveAmbiguousImportedFileExtension: ResolveAmbiguousImportedFileExtension
+  resolveAmbiguousImportedFileExtension?: ResolveAmbiguousImportedFileExtension
 }
 
 interface ParseOptions {
@@ -136,18 +137,23 @@ function defaultResolveAmbiguousImportedFileExtension({
   imported: string
 }): string {
   let sourceFileExtension = path.extname(source)
-  let sourceDirectory = path.dirname(source)
-  if (
-    fs.existsSync(path.join(sourceDirectory, imported + sourceFileExtension))
-  ) {
+  if (fs.existsSync(imported + sourceFileExtension)) {
     return sourceFileExtension
-  } else if (fs.existsSync(path.join(sourceDirectory, imported + '.ts'))) {
+  } else if (fs.existsSync(imported + '.ts')) {
     return '.ts'
-  } else if (fs.existsSync(path.join(sourceDirectory, imported + '.js'))) {
+  } else if (fs.existsSync(imported + '.js')) {
     return '.js'
   }
   throw new Error(
-    `Can't find reasonable file extension for ${imported} when resolving from ${source}`,
+    `
+
+Can't find reasonable file extension for ${imported} when resolving from ${source}
+
+Attempted: '${sourceFileExtension}', '.ts', '.js'
+
+Does this file exist locally?
+
+`,
   )
 }
 
