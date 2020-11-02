@@ -84,9 +84,9 @@ function buildGraph({
 type ResolveBabelParseOptions = (arg: {
   filename: string
   content: string
-}) => Array<ParserPlugin>
+}) => ParseOptions
 
-export interface RgkpArgs {
+export interface RgkpConfig {
   source: string
   resolveBabelParseOptions?: ResolveBabelParseOptions
 }
@@ -114,7 +114,7 @@ function defaultResolveBabelParseOptions({
 export default async function main({
   source,
   resolveBabelParseOptions: _resolveBabelParseOptions,
-}: RgkpArgs) {
+}: RgkpConfig) {
   let resolveBabelParseOptions =
     typeof _resolveBabelParseOptions === 'function'
       ? _resolveBabelParseOptions

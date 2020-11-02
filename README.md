@@ -16,10 +16,12 @@ yarn rgkp ./src/application.tsx
 ## Usage via Node:
 
 ```tsx
-import rgkp from 'rgkp'
+import rgkp, { RgkpConfig } from 'rgkp'
 
 rgkp({
   source: 'path/to/file.tsx',
+  // Optional function to return `@babel/parser`'s `parse` options
+  // Will be merged with `'sourceType': 'module'`
   resolveBabelParseOptions({ filename, content }) {
     return {
       plugins: ['jsx', 'typescript'],
