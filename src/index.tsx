@@ -11,9 +11,11 @@ interface Dependency {
 function collectDependencies({
   filename,
   resolveBabelParseOptions,
+  resolveAmbiguousImportedFileExtension,
 }: {
   filename: string
   resolveBabelParseOptions: ResolveBabelParseOptions
+  resolveAmbiguousImportedFileExtension: ResolveAmbiguousImportedFileExtension
 }): Array<Dependency> {
   let fileExtension = path.extname(filename)
   let content = fs.readFileSync(filename, 'utf-8')
@@ -31,8 +33,14 @@ function collectDependencies({
   for (let importSource of imports) {
     if (importSource.startsWith('.')) {
       let fullpath = path.join(path.dirname(filename), importSource)
+      // this might not be correct, e.g.
+      // A.tsx might import B.js, or B.mdx
       if (path.extname(fullpath) === '') {
-        fullpath += fileExtension
+        let importedFileExtension = resolveAmbiguousImportedFileExtension({
+          source: filename,
+          imported: fullpath,
+        })
+        fullpath += importedFileExtension
       }
       if (fs.existsSync(fullpath)) {
         deps.push({
@@ -40,6 +48,7 @@ function collectDependencies({
           dependencies: collectDependencies({
             filename: fullpath,
             resolveBabelParseOptions,
+            resolveAmbiguousImportedFileExtension,
           }),
         })
       }
@@ -67,6 +76,7 @@ function collectDependencies({
 function buildGraph({
   source,
   resolveBabelParseOptions,
+  resolveAmbiguousImportedFileExtension,
 }: {
   source: string
   resolveBabelParseOptions: ResolveBabelParseOptions
@@ -76,6 +86,7 @@ function buildGraph({
     dependencies: collectDependencies({
       filename: source,
       resolveBabelParseOptions,
+      resolveAmbiguousImportedFileExtension,
     }),
   }
   return entryDependency
@@ -86,9 +97,15 @@ type ResolveBabelParseOptions = (arg: {
   content: string
 }) => ParseOptions
 
+type ResolveAmbiguousImportedFileExtension = (arg: {
+  source: string
+  imported: string
+}) => string
+
 export interface RgkpConfig {
   source: string
   resolveBabelParseOptions?: ResolveBabelParseOptions
+  resolveAmbiguousImportedFileExtension: ResolveAmbiguousImportedFileExtension
 }
 
 interface ParseOptions {
@@ -111,19 +128,48 @@ function defaultResolveBabelParseOptions({
   }
 }
 
+function defaultResolveAmbiguousImportedFileExtension({
+  source,
+  imported,
+}: {
+  source: string
+  imported: string
+}): string {
+  let sourceFileExtension = path.extname(source)
+  let sourceDirectory = path.dirname(source)
+  if (
+    fs.existsSync(path.join(sourceDirectory, imported + sourceFileExtension))
+  ) {
+    return sourceFileExtension
+  } else if (fs.existsSync(path.join(sourceDirectory, imported + '.ts'))) {
+    return '.ts'
+  } else if (fs.existsSync(path.join(sourceDirectory, imported + '.js'))) {
+    return '.js'
+  }
+  throw new Error(
+    `Can't find reasonable file extension for ${imported} when resolving from ${source}`,
+  )
+}
+
 export default async function main({
   source,
   resolveBabelParseOptions: _resolveBabelParseOptions,
+  resolveAmbiguousImportedFileExtension: _resolveAmbiguousImportedFileExtension,
 }: RgkpConfig) {
   let resolveBabelParseOptions =
     typeof _resolveBabelParseOptions === 'function'
       ? _resolveBabelParseOptions
       : defaultResolveBabelParseOptions
+  let resolveAmbiguousImportedFileExtension =
+    typeof _resolveAmbiguousImportedFileExtension === 'function'
+      ? _resolveAmbiguousImportedFileExtension
+      : defaultResolveAmbiguousImportedFileExtension
   let currentWorkingDirectory = process.cwd()
   // Build up dependency graph
   let graph = buildGraph({
     source: path.join(currentWorkingDirectory, source),
     resolveBabelParseOptions,
+    resolveAmbiguousImportedFileExtension,
   })
   console.log(graph)
 }
