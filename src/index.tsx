@@ -8,6 +8,41 @@ interface Dependency {
   dependencies: Array<Dependency>
 }
 
+interface ParseOptions {
+  plugins: Array<ParserPlugin>
+}
+
+interface PackageJSON {
+  dependencies: {
+    [dependency: string]: string
+  }
+}
+
+interface ResolvedDependencyMap {
+  [dependency: string]: string
+}
+
+type ResolveBabelParseOptions = (arg: {
+  filename: string
+  content: string
+}) => ParseOptions
+
+type ResolveAmbiguousImportedFileExtension = (arg: {
+  source: string
+  imported: string
+}) => string
+
+type ResolveAmbiguousDependencies = (
+  packageJSON: PackageJSON,
+) => ResolvedDependencyMap
+
+export interface RgkpConfig {
+  source: string
+  resolveBabelParseOptions?: ResolveBabelParseOptions
+  resolveAmbiguousImportedFileExtension?: ResolveAmbiguousImportedFileExtension
+  resolveAmbiguousDependencies?: ResolveAmbiguousDependencies
+}
+
 function collectDependencies({
   filename,
   resolveBabelParseOptions,
@@ -93,26 +128,6 @@ function buildGraph({
   return entryDependency
 }
 
-type ResolveBabelParseOptions = (arg: {
-  filename: string
-  content: string
-}) => ParseOptions
-
-type ResolveAmbiguousImportedFileExtension = (arg: {
-  source: string
-  imported: string
-}) => string
-
-export interface RgkpConfig {
-  source: string
-  resolveBabelParseOptions?: ResolveBabelParseOptions
-  resolveAmbiguousImportedFileExtension?: ResolveAmbiguousImportedFileExtension
-}
-
-interface ParseOptions {
-  plugins: Array<ParserPlugin>
-}
-
 function defaultResolveBabelParseOptions({
   filename,
   content,
@@ -157,10 +172,45 @@ Does this file exist locally?
   )
 }
 
+function defaultResolveAmbiguousDependencies(
+  packageJSON: PackageJSON,
+): ResolvedDependencyMap {
+  return Object.entries(packageJSON.dependencies || {}).reduce(
+    (acc, [dependency, version]) => {
+      return {
+        ...acc,
+        [dependency]: `https://unpkg.com/${dependency}@${version}`,
+      }
+    },
+    {},
+  )
+}
+
+function findPackageJSON({
+  currentWorkingDirectory,
+}: {
+  currentWorkingDirectory: string
+}): PackageJSON {
+  let currentPath = currentWorkingDirectory
+  let root = path.parse(currentPath).root
+  while (currentPath !== root) {
+    let pjsonPath = path.join(currentPath, 'package.json')
+    if (fs.existsSync(pjsonPath)) {
+      return require(pjsonPath)
+    } else {
+      currentPath = path.resolve(currentPath, '..')
+    }
+  }
+  throw new Error(
+    `Couldn't find package.json within current path or any parent paths!`,
+  )
+}
+
 export default async function main({
   source,
   resolveBabelParseOptions: _resolveBabelParseOptions,
   resolveAmbiguousImportedFileExtension: _resolveAmbiguousImportedFileExtension,
+  resolveAmbiguousDependencies: _resolveAmbiguousDependencies,
 }: RgkpConfig) {
   let resolveBabelParseOptions =
     typeof _resolveBabelParseOptions === 'function'
@@ -170,12 +220,22 @@ export default async function main({
     typeof _resolveAmbiguousImportedFileExtension === 'function'
       ? _resolveAmbiguousImportedFileExtension
       : defaultResolveAmbiguousImportedFileExtension
+
+  let resolveAmbiguousDependencies =
+    typeof _resolveAmbiguousDependencies === 'function'
+      ? _resolveAmbiguousDependencies
+      : defaultResolveAmbiguousDependencies
+
   let currentWorkingDirectory = process.cwd()
+
+  let packageJSON = findPackageJSON({ currentWorkingDirectory })
+
+  let dependencyMap = resolveAmbiguousDependencies(packageJSON)
+
   // Build up dependency graph
   let graph = buildGraph({
     source: path.join(currentWorkingDirectory, source),
     resolveBabelParseOptions,
     resolveAmbiguousImportedFileExtension,
   })
-  console.log(graph)
 }

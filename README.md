@@ -36,5 +36,13 @@ rgkp({
   resolveAmbiguousImportedFileExtension({ source, imported }) {
     return `.tsx`
   },
+  // Optional
+  // Function to resolve the NPM dependencies of a project to URL's
+  // Note: Many of the defaults here _may_ not be what you want!
+  resolveAmbiguousDependencies(packageJSON) {
+    return {
+      react: `https://unpkg.com/react@16.14.0/umd/react.production.min.js`,
+    }
+  },
 })
 ```
