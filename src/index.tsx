@@ -2,6 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import traverse from '@babel/traverse'
 import { parse, ParserPlugin } from '@babel/parser'
+import { importDeclaration, stringLiteral } from '@babel/types'
 
 interface Dependency {
   filename: string
@@ -45,14 +46,15 @@ export interface RgkpConfig {
 
 function collectDependencies({
   filename,
+  dependencyMap,
   resolveBabelParseOptions,
   resolveAmbiguousImportedFileExtension,
 }: {
   filename: string
+  dependencyMap: ResolvedDependencyMap
   resolveBabelParseOptions: ResolveBabelParseOptions
   resolveAmbiguousImportedFileExtension: ResolveAmbiguousImportedFileExtension
 }): Array<Dependency> {
-  let fileExtension = path.extname(filename)
   let content = fs.readFileSync(filename, 'utf-8')
   let ast = parse(content, {
     sourceType: 'module',
@@ -61,6 +63,22 @@ function collectDependencies({
   let imports = []
   traverse(ast, {
     ImportDeclaration(path) {
+      let importedFrom = path.node.source.value
+      if (
+        !importedFrom.startsWith('.') &&
+        !importedFrom.startsWith('/') &&
+        !importedFrom.startsWith('//') &&
+        !importedFrom.startsWith('http')
+      ) {
+        if (dependencyMap[importedFrom]) {
+          path.replaceWith(
+            importDeclaration(
+              path.node.specifiers,
+              stringLiteral(dependencyMap[importedFrom]),
+            ),
+          )
+        }
+      }
       imports.push(path.node.source.value)
     },
   })
@@ -82,6 +100,7 @@ function collectDependencies({
           filename: fullpath,
           dependencies: collectDependencies({
             filename: fullpath,
+            dependencyMap,
             resolveBabelParseOptions,
             resolveAmbiguousImportedFileExtension,
           }),
@@ -112,10 +131,12 @@ function buildGraph({
   source,
   resolveBabelParseOptions,
   resolveAmbiguousImportedFileExtension,
+  dependencyMap,
 }: {
   source: string
   resolveBabelParseOptions: ResolveBabelParseOptions
   resolveAmbiguousImportedFileExtension: ResolveAmbiguousImportedFileExtension
+  dependencyMap: ResolvedDependencyMap
 }): Dependency {
   let entryDependency: Dependency = {
     filename: source,
@@ -123,6 +144,7 @@ function buildGraph({
       filename: source,
       resolveBabelParseOptions,
       resolveAmbiguousImportedFileExtension,
+      dependencyMap,
     }),
   }
   return entryDependency
@@ -237,5 +259,7 @@ export default async function main({
     source: path.join(currentWorkingDirectory, source),
     resolveBabelParseOptions,
     resolveAmbiguousImportedFileExtension,
+    dependencyMap,
   })
+  console.log(graph)
 }
