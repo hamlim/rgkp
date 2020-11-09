@@ -3,9 +3,14 @@ import fs from 'fs'
 import traverse from '@babel/traverse'
 import { parse, ParserPlugin } from '@babel/parser'
 import { importDeclaration, stringLiteral } from '@babel/types'
+import esbuild from 'esbuild'
+import mdx from '@mdx-js/mdx'
+
+type AssetType = 'javascript' | 'typescript' | 'mdx' | 'unknown'
 
 interface Dependency {
   filename: string
+  type: AssetType
   dependencies: Array<Dependency>
 }
 
@@ -17,6 +22,7 @@ interface PackageJSON {
   dependencies: {
     [dependency: string]: string
   }
+  version: string
 }
 
 interface ResolvedDependencyMap {
@@ -42,6 +48,23 @@ export interface RgkpConfig {
   resolveBabelParseOptions?: ResolveBabelParseOptions
   resolveAmbiguousImportedFileExtension?: ResolveAmbiguousImportedFileExtension
   resolveAmbiguousDependencies?: ResolveAmbiguousDependencies
+}
+
+function getAssetType(source: string): AssetType {
+  let extension = path.extname(source)
+  switch (extension) {
+    case '.js':
+    case '.jsx':
+      return 'javascript'
+    case '.ts':
+    case '.tsx':
+      return 'typescript'
+    case '.mdx':
+    case '.md':
+      return 'mdx'
+    default:
+      return 'unknown'
+  }
 }
 
 function collectDependencies({
@@ -78,13 +101,22 @@ function collectDependencies({
             ),
           )
         }
+      } else if (importedFrom.startsWith('.') || importedFrom.startsWith('/')) {
+        imports.push(path.node.source.value)
       }
-      imports.push(path.node.source.value)
     },
   })
   let deps = []
   for (let importSource of imports) {
-    if (importSource.startsWith('.')) {
+    if (importSource.startsWith('http') || importSource.startsWith('//')) {
+      // Absolute import to a URL
+      // ignore it here, we'll leave this as-is
+      deps.push({
+        filename: importSource,
+        type: getAssetType(importSource),
+        dependencies: [],
+      })
+    } else if (importSource.startsWith('.') || importSource.startsWith('/')) {
       let fullpath = path.join(path.dirname(filename), importSource)
       // this might not be correct, e.g.
       // A.tsx might import B.js, or B.mdx
@@ -98,6 +130,7 @@ function collectDependencies({
       if (fs.existsSync(fullpath)) {
         deps.push({
           filename: fullpath,
+          type: getAssetType(fullpath),
           dependencies: collectDependencies({
             filename: fullpath,
             dependencyMap,
@@ -106,20 +139,11 @@ function collectDependencies({
           }),
         })
       }
-    } else if (
-      importSource.startsWith('http') ||
-      importSource.startsWith('//')
-    ) {
-      // Absolute import to a URL
-      // ignore it here, we'll leave this as-is
-      deps.push({
-        filename: importSource,
-        dependencies: [],
-      })
     } else {
       // ambiguous import, e.g. `import 'react';`
       deps.push({
         filename: importSource,
+        type: getAssetType(importSource),
         dependencies: [],
       })
     }
@@ -140,6 +164,7 @@ function buildGraph({
 }): Dependency {
   let entryDependency: Dependency = {
     filename: source,
+    type: getAssetType(source),
     dependencies: collectDependencies({
       filename: source,
       resolveBabelParseOptions,
@@ -150,6 +175,27 @@ function buildGraph({
   return entryDependency
 }
 
+function findPackageJSON({
+  currentWorkingDirectory,
+}: {
+  currentWorkingDirectory: string
+}): PackageJSON {
+  let currentPath = currentWorkingDirectory
+  let root = path.parse(currentPath).root
+  while (currentPath !== root) {
+    let pjsonPath = path.join(currentPath, 'package.json')
+    if (fs.existsSync(pjsonPath)) {
+      return require(pjsonPath)
+    } else {
+      currentPath = path.resolve(currentPath, '..')
+    }
+  }
+  throw new Error(
+    `Couldn't find package.json within current path or any parent paths!`,
+  )
+}
+
+// Default Methods
 function defaultResolveBabelParseOptions({
   filename,
   content,
@@ -201,33 +247,14 @@ function defaultResolveAmbiguousDependencies(
     (acc, [dependency, version]) => {
       return {
         ...acc,
-        [dependency]: `https://unpkg.com/${dependency}@${version}`,
+        [dependency]: `https://esm.sh/${dependency}@${version}`,
       }
     },
     {},
   )
 }
 
-function findPackageJSON({
-  currentWorkingDirectory,
-}: {
-  currentWorkingDirectory: string
-}): PackageJSON {
-  let currentPath = currentWorkingDirectory
-  let root = path.parse(currentPath).root
-  while (currentPath !== root) {
-    let pjsonPath = path.join(currentPath, 'package.json')
-    if (fs.existsSync(pjsonPath)) {
-      return require(pjsonPath)
-    } else {
-      currentPath = path.resolve(currentPath, '..')
-    }
-  }
-  throw new Error(
-    `Couldn't find package.json within current path or any parent paths!`,
-  )
-}
-
+// Main method
 export default async function main({
   source,
   resolveBabelParseOptions: _resolveBabelParseOptions,
@@ -261,5 +288,21 @@ export default async function main({
     resolveAmbiguousImportedFileExtension,
     dependencyMap,
   })
-  console.log(graph)
+
+  // make temp dir
+  let cacheDir = path.join(
+    './',
+    'node_modules',
+    '.rgkp-cache',
+    // @TODO
+    // Do we want to use something a bit less stable?
+    // e.g. Date.now().toString()?
+    packageJSON.version,
+  )
+  fs.mkdirSync(cacheDir, { recursive: true })
+
+  fs.writeFileSync(
+    path.join(cacheDir, 'build-graph.json'),
+    JSON.stringify(graph),
+  )
 }

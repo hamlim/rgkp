@@ -45,6 +45,8 @@
   "dependencies": {
     "@babel/parser": "^7.12.3",
     "@babel/traverse": "^7.12.1",
-    "@babel/types": "^7.12.6"
+    "@babel/types": "^7.12.6",
+    "@mdx-js/mdx": "^1.6.21",
+    "esbuild": "^0.8.5"
   }
 }
