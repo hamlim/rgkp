@@ -47,6 +47,6 @@
     "@babel/traverse": "^7.23.2",
     "@babel/types": "^7.12.6",
     "@mdx-js/mdx": "^1.6.21",
-    "esbuild": "^0.8.5"
+    "esbuild": "^0.25.0"
   }
 }
